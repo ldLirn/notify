@@ -1,4 +1,4 @@
-module github.com/dongfg/notify
+module github.com/ldLirn/notify
 
 go 1.14
 
