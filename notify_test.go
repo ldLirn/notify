@@ -171,7 +171,8 @@ func TestNotify_Send(t *testing.T) {
 func TestNotify_getToken(t *testing.T) {
 	n := newNotifyFromEnv()
 	t.Run("ValidConfig", func(t *testing.T) {
-		err := n.getToken()
+		token, _, err := n.GetToken()
+		fmt.Println(token)
 		if err != nil {
 			t.Errorf("getToken() error = %v, want no error", err)
 		}
@@ -183,7 +184,8 @@ func TestNotify_getTokenWithPersist(t *testing.T) {
 	n.EnableTokenPersist()
 
 	t.Run("ValidConfig", func(t *testing.T) {
-		err := n.getToken()
+		token, _, err := n.GetToken()
+		fmt.Println(token)
 		if err != nil {
 			t.Errorf("getToken() error = %v, want no error", err)
 		}

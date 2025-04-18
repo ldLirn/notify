@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -315,10 +314,11 @@ func (n *Notify) Upload(media UploadMedia) (UploadMediaResult, error) {
 	}
 	_ = w.Close()
 	// get token
-	err = n.GetToken()
+	token, _, err := n.GetToken()
 	if err != nil {
 		return result, err
 	}
+	fmt.Println(token)
 	// send request
 	res, err := client.Post(fmt.Sprintf("%s/media/upload?access_token=%s&type=%s", apiPrefix, n.Token, media.Type), w.FormDataContentType(), &b)
 	if err != nil {
@@ -342,32 +342,32 @@ func (n *Notify) SetCacheFilePath(path string) {
 	n.CacheFilePath = path
 }
 
-func (n *Notify) GetToken() error {
+func (n *Notify) GetToken() (string, int64, error) {
 	if n.Token != "" && time.Now().Unix() < n.TokenExpiresAt {
-		return nil
+		return n.Token, n.TokenExpiresAt, nil
 	}
 
 	var client = &http.Client{Timeout: 10 * time.Second}
 
 	res, err := client.Get(fmt.Sprintf("%s/gettoken?corpid=%s&corpsecret=%s", apiPrefix, n.corpID, n.appSecret))
 	if err != nil {
-		return fmt.Errorf("token get request error: %w", err)
+		return "", 0, fmt.Errorf("token get request error: %w", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 	var tokenRes GetTokenResult
 	err = json.NewDecoder(res.Body).Decode(&tokenRes)
 	if err != nil {
-		return fmt.Errorf("token result decode error: %w", err)
+		return "", 0, fmt.Errorf("token result decode error: %w", err)
 	}
 	if tokenRes.ErrorCode != 0 {
-		return fmt.Errorf("token get error: %s", tokenRes.ErrorMsg)
+		return "", 0, fmt.Errorf("token get error: %s", tokenRes.ErrorMsg)
 	}
 	n.Token = tokenRes.Token
 	n.TokenExpiresAt = time.Now().Unix() + tokenRes.ExpiresIn
 
 	_ = n.saveTokenCache()
 
-	return nil
+	return tokenRes.Token, n.TokenExpiresAt, nil
 }
 
 func (n *Notify) loadTokenCache() error {
@@ -376,7 +376,7 @@ func (n *Notify) loadTokenCache() error {
 	}
 
 	// 使用配置的缓存文件路径
-	b, err := ioutil.ReadFile(n.CacheFilePath)
+	b, err := os.ReadFile(n.CacheFilePath)
 	if err != nil {
 		return fmt.Errorf("read cache file error: %w", err)
 	}
@@ -475,17 +475,18 @@ func (n *Notify) sendMessage(msgBody map[string]interface{}) (MessageResult, err
 func (n *Notify) sendInternal(msgBody map[string]interface{}) (MessageResult, error) {
 	var result MessageResult
 
-	err := n.GetToken()
+	token, _, err := n.GetToken()
 	if err != nil {
 		return result, err
 	}
-
+	fmt.Println(token)
 	result, err = n.sendMessage(msgBody)
 	// 42001 access_token 已过期
 	// 40014 不合法的access_token
 	if err == nil && (result.ErrorCode == 42001 || result.ErrorCode == 40014) {
 		// DONE check if error is token expire error, then retry once
-		err = n.GetToken()
+		token, _, err := n.GetToken()
+		fmt.Println(token)
 		if err == nil {
 			result, err = n.sendMessage(msgBody)
 		}
