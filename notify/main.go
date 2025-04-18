@@ -21,7 +21,7 @@ THE SOFTWARE.
 */
 package main
 
-import "github.com/dongfg/notify/notify/cmd"
+import "github.com/ldLirn/notify/notify/cmd"
 
 func main() {
 	cmd.Execute()

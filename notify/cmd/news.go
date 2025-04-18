@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/dongfg/notify"
+	"github.com/ldLirn/notify"
 
 	"github.com/spf13/cobra"
 )

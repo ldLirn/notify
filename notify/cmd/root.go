@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dongfg/notify"
+	"github.com/ldLirn/notify"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
-//  cfgFile global config file path
+// cfgFile global config file path
 var cfgFile string
 
 var (
