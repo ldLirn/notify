@@ -228,7 +228,7 @@ type Notify struct {
 	TokenExpiresAt int64
 }
 
-type getTokenResult struct {
+type GetTokenResult struct {
 	ErrorCode int    `json:"errcode,omitempty"`
 	ErrorMsg  string `json:"errmsg,omitempty"`
 	Token     string `json:"access_token,omitempty"`
@@ -313,7 +313,7 @@ func (n *Notify) Upload(media UploadMedia) (UploadMediaResult, error) {
 	}
 	_ = w.Close()
 	// get token
-	err = n.getToken()
+	err = n.GetToken()
 	if err != nil {
 		return result, err
 	}
@@ -335,7 +335,7 @@ func (n *Notify) EnableTokenPersist() {
 	n.TokenPersist = true
 }
 
-func (n *Notify) getToken() error {
+func (n *Notify) GetToken() error {
 	if n.Token != "" && time.Now().Unix() < n.TokenExpiresAt {
 		return nil
 	}
@@ -347,7 +347,7 @@ func (n *Notify) getToken() error {
 		return fmt.Errorf("token get request error: %w", err)
 	}
 	defer func() { _ = res.Body.Close() }()
-	var tokenRes getTokenResult
+	var tokenRes GetTokenResult
 	err = json.NewDecoder(res.Body).Decode(&tokenRes)
 	if err != nil {
 		return fmt.Errorf("token result decode error: %w", err)
@@ -426,7 +426,7 @@ func (n *Notify) sendMessage(msgBody map[string]interface{}) (MessageResult, err
 func (n *Notify) sendInternal(msgBody map[string]interface{}) (MessageResult, error) {
 	var result MessageResult
 
-	err := n.getToken()
+	err := n.GetToken()
 	if err != nil {
 		return result, err
 	}
@@ -436,7 +436,7 @@ func (n *Notify) sendInternal(msgBody map[string]interface{}) (MessageResult, er
 	// 40014 不合法的access_token
 	if err == nil && (result.ErrorCode == 42001 || result.ErrorCode == 40014) {
 		// DONE check if error is token expire error, then retry once
-		err = n.getToken()
+		err = n.GetToken()
 		if err == nil {
 			result, err = n.sendMessage(msgBody)
 		}
