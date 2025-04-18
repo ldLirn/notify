@@ -226,6 +226,7 @@ type Notify struct {
 	TokenPersist   bool
 	Token          string
 	TokenExpiresAt int64
+	CacheFilePath  string // 新增缓存文件路径配置
 }
 
 type GetTokenResult struct {
@@ -239,6 +240,7 @@ type GetTokenResult struct {
 func New(corpID string, agentID int64, appSecret string) *Notify {
 	n := &Notify{
 		corpID: corpID, agentID: agentID, appSecret: appSecret,
+		CacheFilePath: ".notify", // 默认缓存文件路径
 	}
 	_ = n.loadTokenCache()
 	return n
@@ -335,6 +337,11 @@ func (n *Notify) EnableTokenPersist() {
 	n.TokenPersist = true
 }
 
+// SetCacheFilePath 设置缓存文件路径
+func (n *Notify) SetCacheFilePath(path string) {
+	n.CacheFilePath = path
+}
+
 func (n *Notify) GetToken() error {
 	if n.Token != "" && time.Now().Unix() < n.TokenExpiresAt {
 		return nil
@@ -367,37 +374,79 @@ func (n *Notify) loadTokenCache() error {
 	if !n.TokenPersist {
 		return fmt.Errorf("token persist not enabled")
 	}
-	b, err := ioutil.ReadFile(".notify")
+
+	// 使用配置的缓存文件路径
+	b, err := ioutil.ReadFile(n.CacheFilePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("read cache file error: %w", err)
 	}
+
 	var cache Notify
 	err = json.Unmarshal(b, &cache)
 	if err != nil {
-		return err
+		return fmt.Errorf("unmarshal cache data error: %w", err)
 	}
+
 	if time.Now().Unix() > cache.TokenExpiresAt {
 		return fmt.Errorf("token expired")
 	}
+
 	n.Token = cache.Token
 	n.TokenExpiresAt = cache.TokenExpiresAt
 	return nil
 }
 
 func (n *Notify) saveTokenCache() error {
+	// 检查是否启用了令牌持久化
 	if !n.TokenPersist {
 		return fmt.Errorf("token persist not enabled")
 	}
+
+	// 将 Notify 对象序列化为 JSON
 	b, err := json.Marshal(n)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal notify object failed: %w", err)
 	}
-	f, err := os.Create(".notify")
+
+	// 确保缓存目录存在
+	cacheDir := filepath.Dir(n.CacheFilePath)
+	if cacheDir != "." {
+		if err := os.MkdirAll(cacheDir, 0755); err != nil {
+			return fmt.Errorf("create cache directory failed: %w", err)
+		}
+	}
+
+	// 创建临时文件
+	tempFile := n.CacheFilePath + ".tmp"
+	f, err := os.Create(tempFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp file failed: %w", err)
 	}
-	defer func() { _ = f.Close() }()
+
+	// 写入数据并关闭文件
 	_, err = f.Write(b)
+	if err != nil {
+		f.Close()
+		os.Remove(tempFile)
+		return fmt.Errorf("write to temp file failed: %w", err)
+	}
+
+	if err = f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tempFile)
+		return fmt.Errorf("sync temp file failed: %w", err)
+	}
+
+	if err = f.Close(); err != nil {
+		os.Remove(tempFile)
+		return fmt.Errorf("close temp file failed: %w", err)
+	}
+
+	// 原子性地重命名临时文件
+	if err = os.Rename(tempFile, n.CacheFilePath); err != nil {
+		return fmt.Errorf("rename temp file failed: %w", err)
+	}
+
 	return err
 }
 
